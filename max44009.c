@@ -73,21 +73,30 @@ unsigned char ucTemp[2];
 //
 float max44009ReadValue(void)
 {
-unsigned char ucTemp[2];
+unsigned char ucTemp[4];
 int i,rc;
 int iMantissa, iExponent;
 float fLux;
 
+//
+// We need to read registers 0x3 and 0x4 for the LUX value
+// On most systems, a 2-byte read from 0x3 succeeds, but on RPI boards
+// there is something wrong with their I2C hardware and it doesn't work
+// so we split the operation into 2 separate reads
+//
 	ucTemp[0] = 0x3; // start of data registers we want
 	rc = write(file_i2c, ucTemp, 1); // write address of register to read
-	i = read(file_i2c, ucTemp, 2);
-	if (rc != 1 || i != 2)
+	i = read(file_i2c, &ucTemp[1], 1);
+	ucTemp[0] = 0x4; // read second byte
+	rc = write(file_i2c, ucTemp, 1);
+	i = read(file_i2c, &ucTemp[2], 1);
+	if (rc != 1 || i != 1)
 	{
 		return 0.0f; // something went wrong
 	}
-	iMantissa = ((ucTemp[0] & 0xf)<< 4); // upper bits of mantissa
-	iMantissa |= (ucTemp[1] & 0xf); // lower bits of mantissa
-	iExponent = ucTemp[0] >> 4;
+	iMantissa = ((ucTemp[1] & 0xf)<< 4); // upper bits of mantissa
+	iMantissa |= (ucTemp[2] & 0xf); // lower bits of mantissa
+	iExponent = ucTemp[1] >> 4;
 	iMantissa = (iMantissa << iExponent);
 	fLux = (float)iMantissa * 0.72f;
 	return fLux;
